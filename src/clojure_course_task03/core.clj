@@ -201,11 +201,28 @@
   
   )
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; TBD: Implement the following macros
-;;
+(defn permission-var-name [group-name table]
+  (str "-" (clojure.string/lower-case group-name) "-" table))
 
-(defmacro group [name & body]
+(defn make-permission-var [group-name [table _-> permission-list]]
+  (assert (= _-> '->))
+  (let [var-name (permission-var-name group-name table)
+        var-symbol (symbol var-name)
+        fun-name (str "select" var-name)
+        fun-symbol (symbol fun-name)
+        fields-vector (vec (map keyword permission-list))]
+     [`(def ~var-symbol ~fields-vector)
+     `(defn ~fun-symbol [] 
+        (let [~(symbol (str table "-fields-var")) ~fields-vector]
+         (select ~table (~(symbol "fields") :all))))]))
+
+(defn get-definitions [group-name permissions]
+  (loop [permissions permissions acc []]
+    (if (nil? permissions)
+    acc
+    (recur (next permissions) (doall (concat acc (make-permission-var group-name (first permissions))))))))
+
+(defmacro group [group-name & body]
   ;; Пример
   ;; (group Agent
   ;;      proposal -> [person, phone, address, price]
@@ -216,7 +233,8 @@
   ;; 3) Создает следующие функции
   ;;    (select-agent-proposal) ;; select person, phone, address, price from proposal;
   ;;    (select-agent-agents)  ;; select clients_id, proposal_id, agent from agents;
-  )
+  `(do 
+     ~@(get-definitions group-name (partition 3 body))))
 
 (defmacro user [name & body]
   ;; Пример
