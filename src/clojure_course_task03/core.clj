@@ -273,7 +273,12 @@
   `(do 
      ~@(map (fn[x] `(swap! *permissions* merge (hash-map (keyword ~(clojure.string/lower-case user-name)) ~x))) (get-user-definitions user-name body))))
 
-(defmacro with-user [name & body]
+(defn get-local-bindings [user-name]
+  (apply concat
+    (for [[table-var fields-var] ((keyword (clojure.string/lower-case user-name)) @*permissions*)]
+    [(symbol (str (name table-var) "-fields-var")) fields-var])))
+
+(defmacro with-user [user-name & body]
   ;; Пример
   ;; (with-user Ivanov
   ;;   . . .)
@@ -283,4 +288,4 @@
   ;;    proposal-fields-var и agents-fields-var.
   ;;    Таким образом, функция select, вызванная внутри with-user, получает
   ;;    доступ ко всем необходимым переменным вида <table-name>-fields-var.
-  `(let ~(get-local-bindings name) ~@body))
+  `(let [~@(get-local-bindings user-name)] ~@body))
