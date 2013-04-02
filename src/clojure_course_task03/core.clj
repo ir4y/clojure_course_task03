@@ -201,26 +201,30 @@
   
   )
 
-(defn permission-var-name [group-name table]
-  (str "-" (clojure.string/lower-case group-name) "-" table))
+(defn permissions-var-name [group-name]
+  (str "-" (clojure.string/lower-case group-name) "-permissions"))
+
+(defn select-fun-name [group-name table-name]
+  (str "select-" (clojure.string/lower-case group-name) "-" table-name))
 
 (defn make-permission-var [group-name [table _-> permission-list]]
   (assert (= _-> '->))
-  (let [var-name (permission-var-name group-name table)
+  (let [var-name (permissions-var-name group-name)
         var-symbol (symbol var-name)
-        fun-name (str "select" var-name)
+        fun-name (select-fun-name group-name table)
         fun-symbol (symbol fun-name)
         fields-vector (vec (map keyword permission-list))]
-     [`(def ~var-symbol ~fields-vector)
+     [`(swap! ~var-symbol merge (hash-map ~(keyword table), ~fields-vector))
      `(defn ~fun-symbol [] 
         (let [~(symbol (str table "-fields-var")) ~fields-vector]
          (select ~table (~(symbol "fields") :all))))]))
 
 (defn get-definitions [group-name permissions]
-  (loop [permissions permissions acc []]
+  (loop [permissions permissions 
+         acc []]
     (if (nil? permissions)
-    acc
-    (recur (next permissions) (doall (concat acc (make-permission-var group-name (first permissions))))))))
+      acc
+      (recur (next permissions) (doall (concat acc (make-permission-var group-name (first permissions))))))))
 
 (defmacro group [group-name & body]
   ;; Пример
@@ -234,15 +238,40 @@
   ;;    (select-agent-proposal) ;; select person, phone, address, price from proposal;
   ;;    (select-agent-agents)  ;; select clients_id, proposal_id, agent from agents;
   `(do 
-     ~@(get-definitions group-name (partition 3 body))))
+     (def ~(symbol (permissions-var-name group-name)) (atom (hash-map)))
+     ~(get-definitions group-name (partition 3 body))))
 
-(defmacro user [name & body]
+(macroexpand-1 '(group Agent proposal -> [person, phone, address, price] agents -> [clients_id, proposal_id, agents]))
+(group Agent proposal -> [person, phone, address, price] agents -> [clients_id, proposal_id, agents])
+(select-agent-proposal)
+@-agent-permissions
+
+(defn make-belongs-var [user-name group-name]
+  (println group-name)
+  (let [table-var (gensym "table")
+        fields-var (gensym "fields")]
+       `(reduce merge
+        (for [[~table-var ~fields-var] @~(symbol( permissions-var-name group-name))]
+        (hash-map ~table-var, ~fields-var)))))
+
+(defn get-user-definitions [user-name [belongs-to & group-names]]
+  (assert (= belongs-to 'belongs-to))
+  (loop [belongs group-names 
+         acc []]
+    (if (nil? belongs)
+      acc
+      (recur (next belongs) (doall (conj acc (make-belongs-var user-name (first belongs))))))))
+
+(def ^:dynamic *permissions* (atom (hash-map)))
+
+(defmacro user [user-name body]
   ;; Пример
   ;; (user Ivanov
   ;;     (belongs-to Agent))
   ;; Создает переменные Ivanov-proposal-fields-var = [:person, :phone, :address, :price]
   ;; и Ivanov-agents-fields-var = [:clients_id, :proposal_id, :agent]
-  )
+  `(do 
+     ~@(map (fn[x] `(swap! *permissions* merge (hash-map (keyword ~(clojure.string/lower-case user-name)) ~x))) (get-user-definitions user-name body))))
 
 (defmacro with-user [name & body]
   ;; Пример
@@ -254,4 +283,4 @@
   ;;    proposal-fields-var и agents-fields-var.
   ;;    Таким образом, функция select, вызванная внутри with-user, получает
   ;;    доступ ко всем необходимым переменным вида <table-name>-fields-var.
-  )
+  `(let ~(get-local-bindings name) ~@body))
