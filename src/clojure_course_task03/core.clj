@@ -219,13 +219,6 @@
         (let [~(symbol (str table "-fields-var")) ~fields-vector]
          (select ~table (~(symbol "fields") :all))))]))
 
-(defn get-definitions [group-name permissions]
-  (loop [permissions permissions 
-         acc []]
-    (if (nil? permissions)
-      acc
-      (recur (next permissions) (doall (concat acc (make-permission-var group-name (first permissions))))))))
-
 (defmacro group [group-name & body]
   ;; Пример
   ;; (group Agent
@@ -239,23 +232,19 @@
   ;;    (select-agent-agents)  ;; select clients_id, proposal_id, agent from agents;
   `(do 
      (def ~(symbol (permissions-var-name group-name)) (atom (hash-map)))
-     ~@(get-definitions group-name (partition 3 body))))
+     ~@(mapcat #(make-permission-var group-name %) (partition 3 body))))
 
 
 (defn make-belongs-var [user-name group-name]
   (let [table-var (gensym "table")
         fields-var (gensym "fields")]
        `(reduce merge
-        (for [[~table-var ~fields-var] @~(symbol( permissions-var-name group-name))]
+        (for [[~table-var ~fields-var] @~(symbol (permissions-var-name group-name))]
         (hash-map ~table-var, ~fields-var)))))
 
 (defn get-user-definitions [user-name [belongs-to & group-names]]
   (assert (= belongs-to 'belongs-to))
-  (loop [belongs group-names 
-         acc []]
-    (if (nil? belongs)
-      acc
-      (recur (next belongs) (doall (conj acc (make-belongs-var user-name (first belongs))))))))
+  (apply conj [] (map #(make-belongs-var user-name %) group-names)))
 
 (def ^:dynamic *permissions* (atom (hash-map)))
 
