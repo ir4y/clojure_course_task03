@@ -239,15 +239,10 @@
   ;;    (select-agent-agents)  ;; select clients_id, proposal_id, agent from agents;
   `(do 
      (def ~(symbol (permissions-var-name group-name)) (atom (hash-map)))
-     ~(get-definitions group-name (partition 3 body))))
+     ~@(get-definitions group-name (partition 3 body))))
 
-(macroexpand-1 '(group Agent proposal -> [person, phone, address, price] agents -> [clients_id, proposal_id, agents]))
-(group Agent proposal -> [person, phone, address, price] agents -> [clients_id, proposal_id, agents])
-(select-agent-proposal)
-@-agent-permissions
 
 (defn make-belongs-var [user-name group-name]
-  (println group-name)
   (let [table-var (gensym "table")
         fields-var (gensym "fields")]
        `(reduce merge
