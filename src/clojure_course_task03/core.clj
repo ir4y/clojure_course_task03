@@ -255,7 +255,9 @@
   ;; Создает переменные Ivanov-proposal-fields-var = [:person, :phone, :address, :price]
   ;; и Ivanov-agents-fields-var = [:clients_id, :proposal_id, :agent]
   `(do 
-     ~@(map (fn[x] `(swap! *permissions* merge (hash-map (keyword ~(clojure.string/lower-case user-name)) ~x))) (get-user-definitions user-name body))))
+     ~@(map 
+         (fn[x] `(swap! *permissions* merge (hash-map (keyword ~(clojure.string/lower-case user-name)) ~x)))
+         (get-user-definitions user-name body))))
 
 (defn get-local-bindings [user-name]
   (apply concat
