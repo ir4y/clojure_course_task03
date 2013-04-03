@@ -1,4 +1,5 @@
 (ns clojure-course-task03.core
+  (:require [clojure-course-task03.map-utils])
   (:require [clojure.set]))
 
 (defn join* [table-name conds]
@@ -248,6 +249,15 @@
 
 (def ^:dynamic *permissions* (atom (hash-map)))
 
+(defn my-concat [x y & zs]
+  (let [result (vec (distinct (apply concat x y zs)))]
+    (if (some #(= :all %) result)
+    [:all]
+    result)))
+
+(defn deep-merge [input-hash update-hash]
+      (clojure-course-task03.map-utils/deep-merge-with my-concat input-hash update-hash))
+
 (defmacro user [user-name body]
   ;; Пример
   ;; (user Ivanov
@@ -256,7 +266,7 @@
   ;; и Ivanov-agents-fields-var = [:clients_id, :proposal_id, :agent]
   `(do 
      ~@(map 
-         (fn[x] `(swap! *permissions* merge (hash-map (keyword ~(clojure.string/lower-case user-name)) ~x)))
+         (fn[x] `(swap! *permissions* deep-merge (hash-map (keyword ~(clojure.string/lower-case user-name)) ~x)))
          (get-user-definitions user-name body))))
 
 (defn get-local-bindings [user-name]
@@ -275,3 +285,5 @@
   ;;    Таким образом, функция select, вызванная внутри with-user, получает
   ;;    доступ ко всем необходимым переменным вида <table-name>-fields-var.
   `(let [~@(get-local-bindings user-name)] ~@body))
+
+
