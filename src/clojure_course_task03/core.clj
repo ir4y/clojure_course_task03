@@ -251,7 +251,7 @@
 
 (defn my-concat [x y & zs]
   (let [result (vec (distinct (apply concat x y zs)))]
-    (if (some #(= :all %) result)
+    (if (some #{:all} result)
     [:all]
     result)))
 
