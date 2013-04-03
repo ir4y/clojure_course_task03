@@ -215,7 +215,7 @@
         fun-name (select-fun-name group-name table)
         fun-symbol (symbol fun-name)
         fields-vector (vec (map keyword permission-list))]
-     [`(swap! ~var-symbol merge (hash-map ~(keyword table), ~fields-vector))
+     [`(swap! ~var-symbol assoc ~(keyword table) ~fields-vector)
      `(defn ~fun-symbol [] 
         (let [~(symbol (str table "-fields-var")) ~fields-vector]
          (select ~table (~(symbol "fields") :all))))]))
@@ -232,7 +232,7 @@
   ;;    (select-agent-proposal) ;; select person, phone, address, price from proposal;
   ;;    (select-agent-agents)  ;; select clients_id, proposal_id, agent from agents;
   `(do 
-     (def ~(symbol (permissions-var-name group-name)) (atom (hash-map)))
+     (def ~(symbol (permissions-var-name group-name)) (atom {}))
      ~@(mapcat #(make-permission-var group-name %) (partition 3 body))))
 
 
@@ -241,13 +241,13 @@
         fields-var (gensym "fields")]
        `(reduce merge
         (for [[~table-var ~fields-var] @~(symbol (permissions-var-name group-name))]
-        (hash-map ~table-var, ~fields-var)))))
+        {~table-var, ~fields-var}))))
 
 (defn get-user-definitions [user-name [belongs-to & group-names]]
   (assert (= belongs-to 'belongs-to))
-  (apply conj [] (map #(make-belongs-var user-name %) group-names)))
+  (vec (map #(make-belongs-var user-name %) group-names)))
 
-(def ^:dynamic *permissions* (atom (hash-map)))
+(def ^:dynamic *permissions* (atom {}))
 
 (defn my-concat [x y & zs]
   (let [result (vec (distinct (apply concat x y zs)))]
@@ -266,7 +266,7 @@
   ;; и Ivanov-agents-fields-var = [:clients_id, :proposal_id, :agent]
   `(do 
      ~@(map 
-         (fn[x] `(swap! *permissions* deep-merge (hash-map (keyword ~(clojure.string/lower-case user-name)) ~x)))
+         (fn[x] `(swap! *permissions* deep-merge { (keyword ~(clojure.string/lower-case user-name)) ~x}))
          (get-user-definitions user-name body))))
 
 (defn get-local-bindings [user-name]
@@ -285,5 +285,3 @@
   ;;    Таким образом, функция select, вызванная внутри with-user, получает
   ;;    доступ ко всем необходимым переменным вида <table-name>-fields-var.
   `(let [~@(get-local-bindings user-name)] ~@body))
-
-
